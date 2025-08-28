@@ -21,6 +21,7 @@ class UrlManipulator {
       // Get current query parameters
       final queryParams = Map<String, String>.from(uri.queryParameters);
       int removedCount = 0;
+      List<String> removedTrackers = [];
 
       // Check if domain has specific rules
       if (domainRules.containsKey(domain)) {
@@ -32,6 +33,7 @@ class UrlManipulator {
         for (final param in removeParams) {
           if (queryParams.containsKey(param)) {
             queryParams.remove(param);
+            removedTrackers.add(param);
             removedCount++;
           }
         }
@@ -40,6 +42,7 @@ class UrlManipulator {
         for (final param in trackingParams) {
           if (!keepParams.contains(param) && queryParams.containsKey(param)) {
             queryParams.remove(param);
+            removedTrackers.add(param);
             removedCount++;
           }
         }
@@ -48,6 +51,7 @@ class UrlManipulator {
         for (final param in trackingParams) {
           if (queryParams.containsKey(param)) {
             queryParams.remove(param);
+            removedTrackers.add(param);
             removedCount++;
           }
         }
@@ -60,6 +64,7 @@ class UrlManipulator {
       return {
         'sanitizedUrl': sanitizedUrl,
         'removedCount': removedCount,
+        'removedTrackers': removedTrackers,
         'domain': domain,
       };
     } catch (e) {

@@ -16,7 +16,9 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'LinkSan',
-      theme: ThemeData.dark(),
+      theme: ThemeData.light(),
+      darkTheme: ThemeData.dark(),
+      themeMode: ThemeMode.system,
       home: const HomePage(),
     );
   }
@@ -34,6 +36,7 @@ class _HomePageState extends State<HomePage> {
   String _sanitizedUrl = '';
   String _trackersText = 'Trackers: None';
   Color _trackersColor = Colors.green;
+  List<String> _removedTrackers = [];
 
   @override
   void initState() {
@@ -61,10 +64,12 @@ class _HomePageState extends State<HomePage> {
     final result = await UrlManipulator.sanitizeUrl(url);
     final sanitizedUrl = result['sanitizedUrl'] as String;
     final removedCount = result['removedCount'] as int;
+    final removedTrackers = result['removedTrackers'] as List<String>;
     final domain = result['domain'] as String;
 
     setState(() {
       _sanitizedUrl = sanitizedUrl;
+      _removedTrackers = removedTrackers;
       if (removedCount > 0) {
         _trackersText = 'Trackers: $removedCount found';
         _trackersColor = Colors.red;
@@ -142,6 +147,28 @@ class _HomePageState extends State<HomePage> {
               _trackersText,
               style: TextStyle(color: _trackersColor, fontSize: 16),
             ),
+            if (_removedTrackers.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              const Text(
+                'Removed Trackers:',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: _removedTrackers.map((tracker) {
+                  return Text(
+                    tracker,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.red,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
             const SizedBox(height: 16),
             if (_sanitizedUrl.isNotEmpty) ...[
               const Text(
