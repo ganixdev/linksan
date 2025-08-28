@@ -1,6 +1,14 @@
-# linksan
+# LinkSan
 
-A new Flutter project.
+LinkSan is a lightweight, open-source mobile app that removes tracking parameters from URLs to protect your privacy.
+
+## Features
+
+- Remove tracking parameters from URLs
+- Clean and sanitize web links
+- Share sheet integration
+- Privacy-focused design
+- Open source and free
 
 ## Getting Started
 

@@ -87,8 +87,110 @@ class _HomePageState extends State<HomePage> {
       _urlController.text = url;
     }
     if (url.isNotEmpty) {
-      await _sanitizeUrl(url);
+      if (_isValidUrl(url)) {
+        await _sanitizeUrl(url);
+      } else {
+        Fluttertoast.showToast(
+          msg: 'Invalid URL format. Please provide a valid web URL.',
+          toastLength: Toast.LENGTH_LONG,
+        );
+        // Clear any previous results
+        setState(() {
+          _sanitizedUrl = '';
+          _removedTrackers = [];
+          _hasProcessedUrl = false;
+          _trackersColor = Colors.green;
+        });
+      }
     }
+  }
+
+  bool _isValidUrl(String text) {
+    final trimmedText = text.trim();
+
+    // Basic checks
+    if (trimmedText.isEmpty || trimmedText.length < 10) {
+      print('URL validation failed: Empty or too short');
+      return false;
+    }
+
+    // Must start with http:// or https://
+    if (!trimmedText.startsWith('http://') && !trimmedText.startsWith('https://')) {
+      print('URL validation failed: Does not start with http:// or https://');
+      return false;
+    }
+
+    // Reject file paths
+    if (trimmedText.startsWith('file://') ||
+        trimmedText.startsWith('/') ||
+        trimmedText.contains(':\\') ||  // Windows paths like C:\
+        trimmedText.contains('\\\\')) {  // Network paths
+      print('URL validation failed: File path detected');
+      return false;
+    }
+
+    // Reject data URLs (base64 encoded images, etc.)
+    if (trimmedText.startsWith('data:')) {
+      print('URL validation failed: Data URL detected');
+      return false;
+    }
+
+    // Reject URLs that are too short or malformed
+    try {
+      final uri = Uri.parse(trimmedText);
+
+      // Must have a valid host
+      final host = uri.host;
+      if (host.isEmpty || host.length < 4) {
+        print('URL validation failed: Invalid or missing host');
+        return false;
+      }
+
+      // Reject localhost and private IPs for security
+      if (host == 'localhost' ||
+          host == '127.0.0.1' ||
+          host.startsWith('192.168.') ||
+          host.startsWith('10.') ||
+          host.startsWith('172.')) {
+        print('URL validation failed: Localhost or private IP detected');
+        return false;
+      }
+
+      // Must have a valid path or be a proper domain
+      final path = uri.path;
+      if (path.isNotEmpty && path.length > 1) {
+        // Check if path looks like a file extension we don't want
+        final lastSegment = path.split('/').last;
+        if (lastSegment.contains('.') &&
+            (lastSegment.endsWith('.jpg') ||
+             lastSegment.endsWith('.jpeg') ||
+             lastSegment.endsWith('.png') ||
+             lastSegment.endsWith('.gif') ||
+             lastSegment.endsWith('.bmp') ||
+             lastSegment.endsWith('.webp') ||
+             lastSegment.endsWith('.svg') ||
+             lastSegment.endsWith('.ico'))) {
+          print('URL validation failed: Image file extension detected');
+          return false;
+        }
+      }
+
+      // Check for suspicious patterns
+      if (trimmedText.contains('javascript:') ||
+          trimmedText.contains('<script') ||
+          trimmedText.contains('eval(') ||
+          trimmedText.contains('alert(')) {
+        print('URL validation failed: Suspicious pattern detected');
+        return false;
+      }
+
+    } catch (e) {
+      print('URL validation failed: Parse error - $e');
+      return false;
+    }
+
+    print('URL validation passed: $trimmedText');
+    return true;
   }
 
   void _copyUrl() {

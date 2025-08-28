@@ -43,7 +43,80 @@ class ShareHandlerActivity : FlutterActivity() {
 
     private fun isValidUrl(text: String): Boolean {
         val trimmedText = text.trim()
-        return trimmedText.startsWith("http://") || trimmedText.startsWith("https://")
+
+        // Basic checks
+        if (trimmedText.isEmpty() || trimmedText.length < 10) {
+            return false
+        }
+
+        // Must start with http:// or https://
+        if (!trimmedText.startsWith("http://") && !trimmedText.startsWith("https://")) {
+            return false
+        }
+
+        // Reject file paths
+        if (trimmedText.startsWith("file://") ||
+            trimmedText.startsWith("/") ||
+            trimmedText.contains(":\\") ||  // Windows paths like C:\
+            trimmedText.contains("\\\\")) {  // Network paths
+            return false
+        }
+
+        // Reject data URLs (base64 encoded images, etc.)
+        if (trimmedText.startsWith("data:")) {
+            return false
+        }
+
+        // Reject URLs that are too short or malformed
+        try {
+            val uri = Uri.parse(trimmedText)
+
+            // Must have a valid host
+            val host = uri.host
+            if (host.isNullOrEmpty() || host.length < 4) {
+                return false
+            }
+
+            // Reject localhost and private IPs for security
+            if (host == "localhost" ||
+                host == "127.0.0.1" ||
+                host.startsWith("192.168.") ||
+                host.startsWith("10.") ||
+                host.startsWith("172.")) {
+                return false
+            }
+
+            // Must have a valid path or be a proper domain
+            val path = uri.path
+            if (path != null && path.length > 1) {
+                // Check if path looks like a file extension we don't want
+                val lastSegment = path.substringAfterLast('/')
+                if (lastSegment.contains('.') &&
+                    (lastSegment.endsWith(".jpg") ||
+                     lastSegment.endsWith(".jpeg") ||
+                     lastSegment.endsWith(".png") ||
+                     lastSegment.endsWith(".gif") ||
+                     lastSegment.endsWith(".bmp") ||
+                     lastSegment.endsWith(".webp") ||
+                     lastSegment.endsWith(".svg") ||
+                     lastSegment.endsWith(".ico"))) {
+                    return false
+                }
+            }
+
+            // Check for suspicious patterns
+            if (trimmedText.contains("javascript:") ||
+                trimmedText.contains("<script") ||
+                trimmedText.contains("eval(") ||
+                trimmedText.contains("alert(")) {
+                return false
+            }
+
+        } catch (e: Exception) {
+            return false
+        }
+
+        return true
     }
 
     private fun processAndReshareUrl(url: String) {
