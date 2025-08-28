@@ -3,6 +3,8 @@ package com.ganixdev.linksan
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.plugin.common.MethodChannel
@@ -72,6 +74,11 @@ class ShareHandlerActivity : FlutterActivity() {
             // Start the share intent
             startActivity(Intent.createChooser(shareIntent, "Share sanitized URL"))
 
+            // Delay finishing to allow toast to be visible
+            Handler(Looper.getMainLooper()).postDelayed({
+                finish()
+            }, 1500) // 1.5 seconds delay
+
         } catch (e: Exception) {
             e.printStackTrace()
             println("Error processing URL, falling back to original: ${e.message}")
@@ -86,10 +93,14 @@ class ShareHandlerActivity : FlutterActivity() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             startActivity(Intent.createChooser(shareIntent, "Share URL"))
+
+            // Delay finishing to allow toast to be visible
+            Handler(Looper.getMainLooper()).postDelayed({
+                finish()
+            }, 1500) // 1.5 seconds delay
         }
 
-        // Finish this activity immediately to avoid UI flicker
-        finish()
+        // Note: finish() is now called with delay in both try and catch blocks above
     }
 
     private fun sanitizeUrl(url: String): Pair<String, Int> {
