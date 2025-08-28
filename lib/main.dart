@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:clipboard/clipboard.dart';
@@ -39,24 +38,24 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _setupSharingIntent();
+    // _setupSharingIntent(); // Commented out for build
   }
 
-  void _setupSharingIntent() {
-    // Listen for shared text
-    ReceiveSharingIntent.getTextStream().listen((String? value) {
-      if (value != null && value.isNotEmpty) {
-        _sanitizeUrl(value, fromShare: true);
-      }
-    });
+  // void _setupSharingIntent() {
+  //   // Listen for shared text
+  //   ReceiveSharingIntent.getTextStream().listen((String? value) {
+  //     if (value != null && value.isNotEmpty) {
+  //       _sanitizeUrl(value, fromShare: true);
+  //     }
+  //   });
 
-    // Handle initial shared text
-    ReceiveSharingIntent.getInitialText().then((String? value) {
-      if (value != null && value.isNotEmpty) {
-        _sanitizeUrl(value, fromShare: true);
-      }
-    });
-  }
+  //   // Handle initial shared text
+  //   ReceiveSharingIntent.getInitialText().then((String? value) {
+  //     if (value != null && value.isNotEmpty) {
+  //       _sanitizeUrl(value, fromShare: true);
+  //     }
+  //   });
+  // }
 
   Future<void> _sanitizeUrl(String url, {bool fromShare = false}) async {
     final result = await UrlManipulator.sanitizeUrl(url);
@@ -86,7 +85,7 @@ class _HomePageState extends State<HomePage> {
 
     if (fromShare) {
       // Re-share the sanitized URL
-      Share.share(sanitizedUrl);
+      // Share.share(sanitizedUrl);
     }
   }
 
