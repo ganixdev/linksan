@@ -15,11 +15,110 @@ class UrlManipulator {
       // Parse the URL
       final uri = Uri.parse(url);
 
-      // Extract domain for toast and domain-specific processing
-      final domain = _extractDomain(uri.host);
+      // Extract initial domain
+      String domain = _extractDomain(uri.host);
+
+      // Handle Google redirect URLs
+      String actualUrl = url;
+      if (domain == 'google.com' && uri.path == '/url' && uri.queryParameters.containsKey('url')) {
+        // Extract the actual URL from the 'url' parameter
+        final encodedUrl = uri.queryParameters['url'];
+        if (encodedUrl != null) {
+          try {
+            actualUrl = Uri.decodeFull(encodedUrl);
+            // Re-parse the actual URL for further processing
+            final actualUri = Uri.parse(actualUrl);
+            final destinationDomain = _extractDomain(actualUri.host);
+
+            // First, remove trackers from the Google redirect URL itself
+            final googleQueryParams = Map<String, String>.from(uri.queryParameters);
+            int totalRemovedCount = 0;
+            List<String> allRemovedTrackers = [];
+
+            // Remove Google-specific tracking parameters
+            if (domainRules.containsKey(domain)) {
+              final domainRule = domainRules[domain] as Map<String, dynamic>;
+              final keepParams = List<String>.from(domainRule['keep'] ?? []);
+              final removeParams = List<String>.from(domainRule['remove'] ?? []);
+
+              // Remove domain-specific parameters from Google URL
+              for (final param in removeParams) {
+                if (googleQueryParams.containsKey(param)) {
+                  googleQueryParams.remove(param);
+                  allRemovedTrackers.add(param);
+                  totalRemovedCount++;
+                }
+              }
+
+              // Remove general tracking parameters from Google URL (except those to keep)
+              for (final param in trackingParams) {
+                if (!keepParams.contains(param) && googleQueryParams.containsKey(param)) {
+                  googleQueryParams.remove(param);
+                  allRemovedTrackers.add(param);
+                  totalRemovedCount++;
+                }
+              }
+            }
+
+            // Now process the destination URL
+            final destinationQueryParams = Map<String, String>.from(actualUri.queryParameters);
+
+            // Apply rules based on the destination domain
+            if (domainRules.containsKey(destinationDomain)) {
+              final domainRule = domainRules[destinationDomain] as Map<String, dynamic>;
+              final keepParams = List<String>.from(domainRule['keep'] ?? []);
+              final removeParams = List<String>.from(domainRule['remove'] ?? []);
+
+              // Remove domain-specific parameters from destination URL
+              for (final param in removeParams) {
+                if (destinationQueryParams.containsKey(param)) {
+                  destinationQueryParams.remove(param);
+                  allRemovedTrackers.add(param);
+                  totalRemovedCount++;
+                }
+              }
+
+              // Remove general tracking parameters from destination URL (except those to keep)
+              for (final param in trackingParams) {
+                if (!keepParams.contains(param) && destinationQueryParams.containsKey(param)) {
+                  destinationQueryParams.remove(param);
+                  allRemovedTrackers.add(param);
+                  totalRemovedCount++;
+                }
+              }
+            } else {
+              // No domain-specific rules for destination, remove all tracking parameters
+              for (final param in trackingParams) {
+                if (destinationQueryParams.containsKey(param)) {
+                  destinationQueryParams.remove(param);
+                  allRemovedTrackers.add(param);
+                  totalRemovedCount++;
+                }
+              }
+            }
+
+            // Rebuild the destination URL with cleaned parameters
+            final sanitizedUri = actualUri.replace(queryParameters: destinationQueryParams);
+            final sanitizedUrl = sanitizedUri.toString();
+
+            return {
+              'sanitizedUrl': sanitizedUrl,
+              'removedCount': totalRemovedCount,
+              'removedTrackers': allRemovedTrackers,
+              'domain': destinationDomain,
+            };
+          } catch (e) {
+            // If decoding fails, continue with original URL
+            actualUrl = url;
+          }
+        }
+      }
+
+      // Continue with normal processing using the actual URL
+      final processingUri = Uri.parse(actualUrl);
 
       // Get current query parameters
-      final queryParams = Map<String, String>.from(uri.queryParameters);
+      final queryParams = Map<String, String>.from(processingUri.queryParameters);
       int removedCount = 0;
       List<String> removedTrackers = [];
 
@@ -58,7 +157,7 @@ class UrlManipulator {
       }
 
       // Rebuild the URL
-      final sanitizedUri = uri.replace(queryParameters: queryParams);
+      final sanitizedUri = processingUri.replace(queryParameters: queryParams);
       final sanitizedUrl = sanitizedUri.toString();
 
       return {

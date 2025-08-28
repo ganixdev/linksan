@@ -77,7 +77,7 @@ class ShareHandlerActivity : FlutterActivity() {
             // Delay finishing to allow toast to be visible
             Handler(Looper.getMainLooper()).postDelayed({
                 finish()
-            }, 1500) // 1.5 seconds delay
+            }, 1000) // 1.5 seconds delay
 
         } catch (e: Exception) {
             e.printStackTrace()
@@ -97,7 +97,7 @@ class ShareHandlerActivity : FlutterActivity() {
             // Delay finishing to allow toast to be visible
             Handler(Looper.getMainLooper()).postDelayed({
                 finish()
-            }, 1500) // 1.5 seconds delay
+            }, 1000) // 1.5 seconds delay
         }
 
         // Note: finish() is now called with delay in both try and catch blocks above
@@ -117,12 +117,107 @@ class ShareHandlerActivity : FlutterActivity() {
             println("Original URL: $url")
             println("Extracted domain: $domain")
 
+            // Handle Google redirect URLs
+            var actualUrl = url
+            var totalRemovedCount = 0
+
+            if (domain == "google.com" && uri.path == "/url" && uri.getQueryParameter("url") != null) {
+                println("Google redirect detected!")
+                val encodedUrl = uri.getQueryParameter("url")
+                if (encodedUrl != null) {
+                    try {
+                        actualUrl = Uri.decode(encodedUrl)
+                        println("Decoded destination URL: $actualUrl")
+                        val actualUri = Uri.parse(actualUrl)
+                        val destinationDomain = extractDomain(actualUri.host ?: "")
+                        println("Destination domain: $destinationDomain")
+
+                        // First, remove trackers from the Google redirect URL itself
+                        val googleQueryParams = uri.queryParameterNames
+                        val googleBuilder = uri.buildUpon()
+                        googleBuilder.clearQuery()
+
+                        if (domainRules.has(domain)) {
+                            val domainRule = domainRules.getJSONObject(domain)
+                            val keepParams = getStringArray(domainRule.getJSONArray("keep"))
+                            val removeParams = getStringArray(domainRule.getJSONArray("remove"))
+
+                            // Remove Google-specific parameters
+                            for (param in googleQueryParams) {
+                                val shouldKeep = keepParams.contains(param) ||
+                                               (!trackingParams.contains(param) && !removeParams.contains(param))
+                                if (shouldKeep) {
+                                    val value = uri.getQueryParameter(param)
+                                    if (value != null) {
+                                        googleBuilder.appendQueryParameter(param, value)
+                                    }
+                                } else {
+                                    totalRemovedCount++
+                                    println("Removed Google parameter: $param")
+                                }
+                            }
+                        }
+
+                        // Now process the destination URL
+                        val destinationQueryParams = actualUri.queryParameterNames
+                        val destinationBuilder = actualUri.buildUpon()
+                        destinationBuilder.clearQuery()
+
+                        if (domainRules.has(destinationDomain)) {
+                            val domainRule = domainRules.getJSONObject(destinationDomain)
+                            val keepParams = getStringArray(domainRule.getJSONArray("keep"))
+                            val removeParams = getStringArray(domainRule.getJSONArray("remove"))
+
+                            // Remove domain-specific parameters from destination
+                            for (param in destinationQueryParams) {
+                                val shouldKeep = keepParams.contains(param) ||
+                                               (!trackingParams.contains(param) && !removeParams.contains(param))
+                                if (shouldKeep) {
+                                    val value = actualUri.getQueryParameter(param)
+                                    if (value != null) {
+                                        destinationBuilder.appendQueryParameter(param, value)
+                                    }
+                                } else {
+                                    totalRemovedCount++
+                                    println("Removed destination parameter: $param")
+                                }
+                            }
+                        } else {
+                            // No domain-specific rules for destination, remove all tracking parameters
+                            for (param in destinationQueryParams) {
+                                if (!trackingParams.contains(param)) {
+                                    val value = actualUri.getQueryParameter(param)
+                                    if (value != null) {
+                                        destinationBuilder.appendQueryParameter(param, value)
+                                    }
+                                } else {
+                                    totalRemovedCount++
+                                    println("Removed destination tracking parameter: $param")
+                                }
+                            }
+                        }
+
+                        val result = destinationBuilder.build().toString()
+                        println("Final sanitized URL: $result")
+                        println("Total parameters removed: $totalRemovedCount")
+                        return Pair(result, totalRemovedCount)
+
+                    } catch (e: Exception) {
+                        println("Error decoding Google redirect URL: ${e.message}")
+                        actualUrl = url
+                    }
+                }
+            }
+
+            // Continue with normal processing for non-Google URLs
+            val processingUri = Uri.parse(actualUrl)
+
             // Get current query parameters
-            val queryParams = uri.queryParameterNames
+            val queryParams = processingUri.queryParameterNames
             var removedCount = 0
 
             // Apply domain-specific rules if they exist
-            val builder = uri.buildUpon()
+            val builder = processingUri.buildUpon()
             builder.clearQuery()
 
             if (domainRules.has(domain)) {
@@ -139,7 +234,7 @@ class ShareHandlerActivity : FlutterActivity() {
                     val shouldKeep = keepParams.contains(param) ||
                                    (!trackingParams.contains(param) && !removeParams.contains(param))
                     if (shouldKeep) {
-                        val value = uri.getQueryParameter(param)
+                        val value = processingUri.getQueryParameter(param)
                         if (value != null) {
                             builder.appendQueryParameter(param, value)
                         }
@@ -153,7 +248,7 @@ class ShareHandlerActivity : FlutterActivity() {
                 // No domain-specific rules, remove all tracking parameters
                 for (param in queryParams) {
                     if (!trackingParams.contains(param)) {
-                        val value = uri.getQueryParameter(param)
+                        val value = processingUri.getQueryParameter(param)
                         if (value != null) {
                             builder.appendQueryParameter(param, value)
                         }
@@ -166,8 +261,8 @@ class ShareHandlerActivity : FlutterActivity() {
 
             val result = builder.build().toString()
             println("Sanitized URL: $result")
-            println("Total parameters removed: $removedCount")
-            Pair(result, removedCount)
+            println("Total parameters removed: ${totalRemovedCount + removedCount}")
+            Pair(result, totalRemovedCount + removedCount)
         } catch (e: Exception) {
             e.printStackTrace()
             println("Error sanitizing URL: ${e.message}")

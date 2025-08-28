@@ -232,7 +232,12 @@
     "realplayer_enabled",
     "windowsmedia_enabled",
     "director_enabled",
-    "silverlight_enabled"
+    "silverlight_enabled",
+    "sa",
+    "rct", 
+    "opi",
+    "ved",
+    "usg"
   ],
   "domain_specific_rules": {
     "youtube.com": {
@@ -286,6 +291,14 @@
     "amazon.com": {
       "keep": ["dp", "asin"],
       "remove": ["tag", "linkCode", "camp", "creative", "creativeASIN", "ascsubtag"]
+    },
+    "google.com": {
+      "keep": ["q", "source", "tbm"],
+      "remove": ["sa", "rct", "opi", "ved", "usg", "ei", "gs_lcp", "sclient", "sca_esv", "rlz", "uact", "gws_rd", "cr", "country", "gl", "ceid"]
+    },
+    "goo.gl": {
+      "keep": [],
+      "remove": ["sa", "rct", "opi", "ved", "usg", "utm_source", "utm_medium", "utm_campaign"]
     }
   }
 }
