@@ -3,7 +3,6 @@ import 'package:share_plus/share_plus.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:clipboard/clipboard.dart';
 import 'utils/url_manipulator.dart';
-import 'constants.dart';
 
 void main() {
   runApp(const MyApp());
@@ -227,29 +226,41 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TextField(
-              controller: _urlController,
-              decoration: InputDecoration(
-                hintText: 'Press sanitize to auto grab from clipboard',
-                border: const OutlineInputBorder(),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            Semantics(
+              label: 'URL input field',
+              hint: 'Enter or paste a URL to sanitize',
+              child: TextField(
+                controller: _urlController,
+                decoration: const InputDecoration(
+                  hintText: 'Press sanitize to auto grab from clipboard',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                maxLines: 1,
               ),
-              maxLines: 1,
             ),
             const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton(
-                    onPressed: _onSanitizePressed,
-                    child: const Text('Sanitize'),
+                  child: Semantics(
+                    label: 'Sanitize URL button',
+                    hint: 'Process and clean the URL from tracking parameters',
+                    child: ElevatedButton(
+                      onPressed: _onSanitizePressed,
+                      child: const Text('Sanitize'),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: _hasProcessedUrl ? _clearResults : null,
-                    child: const Text('Clear'),
+                  child: Semantics(
+                    label: 'Clear results button',
+                    hint: 'Clear all processed results',
+                    child: OutlinedButton(
+                      onPressed: _hasProcessedUrl ? _clearResults : null,
+                      child: const Text('Clear'),
+                    ),
                   ),
                 ),
               ],
@@ -257,89 +268,98 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 16),
             // Redesigned Trackers Section - Only show when URL has been processed
             if (_hasProcessedUrl) ...[
-              Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: _trackersColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: _trackersColor.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+              Semantics(
+                label: 'Tracker detection results',
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _trackersColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _trackersColor.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        _removedTrackers.isEmpty ? Icons.shield : Icons.warning,
-                        color: _trackersColor,
-                        size: 24,
+                      Row(
+                        children: [
+                          Icon(
+                            _removedTrackers.isEmpty ? Icons.shield : Icons.warning,
+                            color: _trackersColor,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _removedTrackers.isEmpty ? 'No Trackers Found' : 'Trackers Detected',
+                            style: TextStyle(
+                              color: _trackersColor,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(height: 8),
                       Text(
-                        _removedTrackers.isEmpty ? 'No Trackers Found' : 'Trackers Detected',
+                        _removedTrackers.isEmpty
+                          ? 'Your URL is clean and safe to use!'
+                          : '${_removedTrackers.length} tracker${_removedTrackers.length == 1 ? '' : 's'} were removed for your privacy',
                         style: TextStyle(
-                          color: _trackersColor,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                          color: _trackersColor.withOpacity(0.8),
+                          fontSize: 14,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _removedTrackers.isEmpty
-                      ? 'Your URL is clean and safe to use!'
-                      : '${_removedTrackers.length} tracker${_removedTrackers.length == 1 ? '' : 's'} were removed for your privacy',
-                    style: TextStyle(
-                      color: _trackersColor.withOpacity(0.8),
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-            if (_removedTrackers.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _removedTrackers.map((tracker) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.red.shade200,
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.block,
-                          size: 16,
-                          color: Colors.red.shade600,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          tracker,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.red.shade800,
-                            fontWeight: FontWeight.w500,
+              if (_removedTrackers.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Semantics(
+                  label: 'List of removed trackers',
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _removedTrackers.map((tracker) {
+                      return Semantics(
+                        label: 'Removed tracker: $tracker',
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.red.shade200,
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.block,
+                                size: 16,
+                                color: Colors.red.shade600,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                tracker,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.red.shade800,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
             ],
             const SizedBox(height: 16),
             if (_sanitizedUrl.isNotEmpty) ...[
@@ -348,24 +368,35 @@ class _HomePageState extends State<HomePage> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              Text(
-                _sanitizedUrl,
-                style: const TextStyle(fontSize: 14),
+              Semantics(
+                label: 'Sanitized URL result',
+                child: Text(
+                  _sanitizedUrl,
+                  style: const TextStyle(fontSize: 14),
+                ),
               ),
               const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
-                    child: ElevatedButton(
-                      onPressed: _copyUrl,
-                      child: const Text('Copy'),
+                    child: Semantics(
+                      label: 'Copy URL button',
+                      hint: 'Copy the sanitized URL to clipboard',
+                      child: ElevatedButton(
+                        onPressed: _copyUrl,
+                        child: const Text('Copy'),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    child: ElevatedButton(
-                      onPressed: _shareUrl,
-                      child: const Text('Share'),
+                    child: Semantics(
+                      label: 'Share URL button',
+                      hint: 'Share the sanitized URL',
+                      child: ElevatedButton(
+                        onPressed: _shareUrl,
+                        child: const Text('Share'),
+                      ),
                     ),
                   ),
                 ],

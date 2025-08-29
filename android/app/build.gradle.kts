@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.ganixdev.linksan"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -20,22 +20,37 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.ganixdev.linksan"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        // Flutter requires minimum API 24 (Android 7.0)
+        minSdkVersion(24)
+        targetSdk = 35
+        versionCode = 1
+        versionName = "1.0.0"
+
+        // ABI filters handled by --split-per-abi flag
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // Aggressive code shrinking and obfuscation
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+
+            // Additional optimizations for smaller size
+            buildConfigField("boolean", "LOG_DEBUG", "false")
+            buildConfigField("boolean", "LOG_INFO", "false")
+
+            // Signing config for release
             signingConfig = signingConfigs.getByName("debug")
         }
+    }
+
+    // Enable build optimization
+    buildFeatures {
+        buildConfig = true
+        resValues = false
+        viewBinding = false
     }
 }
 

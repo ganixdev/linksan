@@ -43,3 +43,23 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Keystore files
+*.jks
+*.keystore
+
+# Local configuration
+local.properties
+
+# iOS build artifacts
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/Generated.xcconfig
+
+# Test coverage
+coverage/
+
+# IDE files
+.vscode/
+.idea/workspace.xml
+*.swp
+*.swo
