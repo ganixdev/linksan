@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:clipboard/clipboard.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'utils/url_manipulator.dart';
 import 'utils/performance_monitor.dart';
 
@@ -39,6 +40,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  // Ko-fi support link
+  final String _coffeeUrl = 'https://ko-fi.com/ganixdev';
   final TextEditingController _urlController = TextEditingController();
   String _sanitizedUrl = '';
   Color _trackersColor = Colors.green;
@@ -415,6 +418,39 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ],
+            if (_hasProcessedUrl)
+              Padding(
+                padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
+                child: Center(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange.shade100,
+                      foregroundColor: Colors.brown.shade800,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      elevation: 2,
+                    ),
+                    onPressed: () async {
+                      final uri = Uri.parse(_coffeeUrl);
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      } else {
+                        Fluttertoast.showToast(msg: 'Could not open Ko-fi link');
+                      }
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Text('🐾', style: TextStyle(fontSize: 20)),
+                        SizedBox(width: 10),
+                        Text('Like my work? ', style: TextStyle(fontWeight: FontWeight.w600)),
+                        Text('Buy me a coffee', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            const Spacer(),
           ],
         ),
       ),
