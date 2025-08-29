@@ -67,3 +67,10 @@ flutter:
   #   - family: MaterialIcons
   #     fonts:
   #       - asset: fonts/MaterialIcons-Regular.otf
+
+  # Enhanced tree shaking configuration
+  generate: true
+
+  # Disable unnecessary features for size optimization
+  # experimental:
+  #   tree-shake-icons: true

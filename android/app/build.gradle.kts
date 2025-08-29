@@ -32,14 +32,19 @@ android {
 
     buildTypes {
         release {
-            // Aggressive code shrinking and obfuscation
+            // Aggressive code shrinking and obfuscation for enhanced tree shaking
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
 
-            // Additional optimizations for smaller size
+            // Additional optimizations for smaller size and better tree shaking
             buildConfigField("boolean", "LOG_DEBUG", "false")
             buildConfigField("boolean", "LOG_INFO", "false")
+
+            // Enhanced compiler optimizations
+            ndk {
+                abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86_64"))
+            }
 
             // Signing config for release
             signingConfig = signingConfigs.getByName("debug")

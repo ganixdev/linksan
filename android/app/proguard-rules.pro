@@ -34,8 +34,8 @@
     public void println(...);
 }
 
-# Maximum compression and optimization
--optimizationpasses 10
+# Enhanced tree shaking optimizations
+-optimizationpasses 15
 -allowaccessmodification
 -dontpreverify
 -dontoptimize
@@ -48,6 +48,17 @@
 -allowaccessmodification
 -dontusemixedcaseclassnames
 -dontwarn java.lang.**
+
+# Aggressive unused code removal
+-keepclasseswithmembers class * {
+    public <init>(...);
+}
+-keepclasseswithmembers class * {
+    public static void main(java.lang.String[]);
+}
+
+# Remove unused annotations
+-dontnote
 -dontwarn kotlin.**
 -dontwarn android.**
 -ignorewarnings
@@ -55,6 +66,11 @@
 # Remove unused resources more aggressively
 -adaptresourcefilenames
 -adaptresourcefilecontents
+
+# Additional tree shaking for Flutter plugins
+-keep class com.apptreesoftware.** { *; }
+-keep class io.github.ponnamkarthik.** { *; }
+-keep class com.ryanheise.** { *; }
 
 # Google Play Core rules (added to fix R8 compilation)
 -dontwarn com.google.android.play.core.splitcompat.SplitCompatApplication
