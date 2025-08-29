@@ -35,16 +35,20 @@ android {
             // Aggressive code shrinking and obfuscation for enhanced tree shaking
             isMinifyEnabled = true
             isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro", "resource-optimization-rules.pro")
 
             // Additional optimizations for smaller size and better tree shaking
             buildConfigField("boolean", "LOG_DEBUG", "false")
             buildConfigField("boolean", "LOG_INFO", "false")
 
             // Enhanced compiler optimizations
-            ndk {
-                abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86_64"))
-            }
+            // Note: ABI filtering handled by --split-per-abi flag
+            // ndk {
+            //     abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86_64"))
+            // }
+
+            // Aggressive resource shrinking configuration
+            resValue("string", "app_name", "LinkSan")
 
             // Signing config for release
             signingConfig = signingConfigs.getByName("debug")
@@ -54,7 +58,7 @@ android {
     // Enable build optimization
     buildFeatures {
         buildConfig = true
-        resValues = false
+        resValues = true  // Enable resource values for optimization
         viewBinding = false
     }
 }

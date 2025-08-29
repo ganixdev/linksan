@@ -63,7 +63,14 @@
 -dontwarn android.**
 -ignorewarnings
 
+# Enhanced resource shrinking rules
+-adaptresourcefilenames
+-adaptresourcefilecontents
+-dontpreverify
+-repackageclasses
+
 # Remove unused resources more aggressively
+-allowaccessmodification
 -adaptresourcefilenames
 -adaptresourcefilecontents
 
@@ -81,6 +88,7 @@
 -dontwarn com.google.android.play.core.splitinstall.SplitInstallRequest
 -dontwarn com.google.android.play.core.splitinstall.SplitInstallSessionState
 -dontwarn com.google.android.play.core.splitinstall.SplitInstallStateUpdatedListener
+-dontwarn com.google.android.play.core.tasks.OnFailureListener
 -dontwarn com.google.android.play.core.tasks.OnFailureListener
 -dontwarn com.google.android.play.core.tasks.OnSuccessListener
 -dontwarn com.google.android.play.core.tasks.Task
