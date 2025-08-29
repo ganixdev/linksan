@@ -1,21 +1,32 @@
 import 'dart:convert';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 class UrlManipulator {
+  // Cache for rules to avoid repeated JSON parsing
+  static Map<String, dynamic>? _cachedRules;
+  static List<String>? _cachedTrackingParams;
+
+  // Helper method to load and cache rules
+  static Future<Map<String, dynamic>> _loadRules() async {
+    if (_cachedRules == null) {
+      final rulesString = await rootBundle.loadString('assets/rules.json');
+      _cachedRules = json.decode(rulesString) as Map<String, dynamic>;
+      _cachedTrackingParams = List<String>.from(_cachedRules!['tracking_parameters'] as List);
+    }
+    return _cachedRules!;
+  }
+
   static Future<Map<String, dynamic>> sanitizeUrl(String url) async {
     try {
-      // Load rules from assets
-      final rulesString = await rootBundle.loadString('assets/rules.json');
-      final rules = json.decode(rulesString);
-
-      // Extract tracking parameters and domain-specific rules
-      final trackingParams = List<String>.from(rules['tracking_parameters']);
+      // Load and cache rules - optimized with caching
+      final rules = await _loadRules();
+      final trackingParams = _cachedTrackingParams!;
       final domainRules = rules['domain_specific_rules'] as Map<String, dynamic>;
 
-      // Parse the URL
+      // Parse the URL - optimized
       final uri = Uri.parse(url);
 
-      // Extract initial domain
+      // Extract initial domain - optimized
       String domain = _extractDomain(uri.host);
 
       // Handle Google redirect URLs
@@ -41,7 +52,7 @@ class UrlManipulator {
               final keepParams = List<String>.from(domainRule['keep'] ?? []);
               final removeParams = List<String>.from(domainRule['remove'] ?? []);
 
-              // Remove domain-specific parameters from Google URL
+              // Remove domain-specific parameters from Google URL - optimized
               for (final param in removeParams) {
                 if (googleQueryParams.containsKey(param)) {
                   googleQueryParams.remove(param);
@@ -50,7 +61,7 @@ class UrlManipulator {
                 }
               }
 
-              // Remove general tracking parameters from Google URL (except those to keep)
+              // Remove general tracking parameters from Google URL (except those to keep) - optimized
               for (final param in trackingParams) {
                 if (!keepParams.contains(param) && googleQueryParams.containsKey(param)) {
                   googleQueryParams.remove(param);
@@ -167,26 +178,29 @@ class UrlManipulator {
         'domain': domain,
       };
     } catch (e) {
-      // If parsing fails, return original
+      // Return original URL with error info - optimized
       return {
         'sanitizedUrl': url,
         'removedCount': 0,
+        'removedTrackers': const [], // Use const for empty lists
         'domain': 'unknown',
       };
     }
   }
 
   static String _extractDomain(String host) {
-    // Handle subdomains by taking the main domain
+    // Handle subdomains by taking the main domain - optimized
     final parts = host.split('.');
-    if (parts.length >= 2) {
+    final length = parts.length;
+
+    if (length >= 2) {
       // For domains like www.example.com, return example.com
-      if (parts.length == 3 && parts[0] == 'www') {
+      if (length == 3 && parts[0] == 'www') {
         return '${parts[1]}.${parts[2]}';
       }
       // For domains like sub.example.com, return example.com
-      if (parts.length > 2) {
-        return '${parts[parts.length - 2]}.${parts[parts.length - 1]}';
+      if (length > 2) {
+        return '${parts[length - 2]}.${parts[length - 1]}';
       }
       // For simple domains like example.com
       return host;

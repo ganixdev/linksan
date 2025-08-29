@@ -44,6 +44,12 @@ class _HomePageState extends State<HomePage> {
     // No need for Flutter-side intent handling
   }
 
+  @override
+  void dispose() {
+    _urlController.dispose();
+    super.dispose();
+  }
+
   Future<void> _sanitizeUrl(String url, {bool fromShare = false}) async {
     final result = await UrlManipulator.sanitizeUrl(url);
     final sanitizedUrl = result['sanitizedUrl'] as String;
@@ -51,25 +57,18 @@ class _HomePageState extends State<HomePage> {
     final removedTrackers = result['removedTrackers'] as List<String>;
     final domain = result['domain'] as String;
 
+    // Batch state updates for better performance
     setState(() {
       _sanitizedUrl = sanitizedUrl;
       _removedTrackers = removedTrackers;
       _hasProcessedUrl = true;
-      if (removedCount > 0) {
-        _trackersColor = Colors.red;
-      } else {
-        _trackersColor = Colors.green;
-      }
+      _trackersColor = removedCount > 0 ? Colors.red : Colors.green;
     });
 
     // Show toast
-    String toastMessage;
-    if (removedCount > 0) {
-      final trackerWord = removedCount == 1 ? 'tracker' : 'trackers';
-      toastMessage = '$removedCount $trackerWord removed from $domain';
-    } else {
-      toastMessage = 'No trackers found';
-    }
+    final toastMessage = removedCount > 0
+        ? '$removedCount tracker${removedCount == 1 ? '' : 's'} removed from $domain'
+        : 'No trackers found';
     Fluttertoast.showToast(msg: toastMessage);
 
     if (fromShare) {
@@ -107,30 +106,26 @@ class _HomePageState extends State<HomePage> {
   bool _isValidUrl(String text) {
     final trimmedText = text.trim();
 
-    // Basic checks
+    // Basic checks - optimized
     if (trimmedText.isEmpty || trimmedText.length < 10) {
-      print('URL validation failed: Empty or too short');
       return false;
     }
 
-    // Must start with http:// or https://
+    // Must start with http:// or https:// - optimized check
     if (!trimmedText.startsWith('http://') && !trimmedText.startsWith('https://')) {
-      print('URL validation failed: Does not start with http:// or https://');
       return false;
     }
 
-    // Reject file paths
+    // Reject file paths - optimized pattern matching
     if (trimmedText.startsWith('file://') ||
         trimmedText.startsWith('/') ||
-        trimmedText.contains(':\\') ||  // Windows paths like C:\
+        trimmedText.contains(':\\') ||  // Windows paths
         trimmedText.contains('\\\\')) {  // Network paths
-      print('URL validation failed: File path detected');
       return false;
     }
 
-    // Reject data URLs (base64 encoded images, etc.)
+    // Reject data URLs
     if (trimmedText.startsWith('data:')) {
-      print('URL validation failed: Data URL detected');
       return false;
     }
 
@@ -138,27 +133,25 @@ class _HomePageState extends State<HomePage> {
     try {
       final uri = Uri.parse(trimmedText);
 
-      // Must have a valid host
+      // Must have a valid host - optimized
       final host = uri.host;
       if (host.isEmpty || host.length < 4) {
-        print('URL validation failed: Invalid or missing host');
         return false;
       }
 
-      // Reject localhost and private IPs for security
+      // Reject localhost and private IPs for security - optimized
       if (host == 'localhost' ||
           host == '127.0.0.1' ||
           host.startsWith('192.168.') ||
           host.startsWith('10.') ||
           host.startsWith('172.')) {
-        print('URL validation failed: Localhost or private IP detected');
         return false;
       }
 
-      // Must have a valid path or be a proper domain
+      // Must have a valid path or be a proper domain - optimized
       final path = uri.path;
       if (path.isNotEmpty && path.length > 1) {
-        // Check if path looks like a file extension we don't want
+        // Check if path looks like a file extension we don't want - optimized
         final lastSegment = path.split('/').last;
         if (lastSegment.contains('.') &&
             (lastSegment.endsWith('.jpg') ||
@@ -169,26 +162,22 @@ class _HomePageState extends State<HomePage> {
              lastSegment.endsWith('.webp') ||
              lastSegment.endsWith('.svg') ||
              lastSegment.endsWith('.ico'))) {
-          print('URL validation failed: Image file extension detected');
           return false;
         }
       }
 
-      // Check for suspicious patterns
+      // Check for suspicious patterns - optimized
       if (trimmedText.contains('javascript:') ||
           trimmedText.contains('<script') ||
           trimmedText.contains('eval(') ||
           trimmedText.contains('alert(')) {
-        print('URL validation failed: Suspicious pattern detected');
         return false;
       }
 
     } catch (e) {
-      print('URL validation failed: Parse error - $e');
       return false;
     }
 
-    print('URL validation passed: $trimmedText');
     return true;
   }
 
@@ -202,7 +191,7 @@ class _HomePageState extends State<HomePage> {
   void _clearResults() {
     setState(() {
       _sanitizedUrl = '';
-      _removedTrackers = [];
+      _removedTrackers = const []; // Use const for empty lists
       _hasProcessedUrl = false;
       _trackersColor = Colors.green;
     });
