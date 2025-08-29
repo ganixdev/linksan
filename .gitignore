@@ -63,3 +63,39 @@ coverage/
 .idea/workspace.xml
 *.swp
 *.swo
+
+# Android build artifacts (additional)
+android/app/build/
+android/app/src/debug/
+android/app/src/profile/
+android/app/src/release/
+*.apk
+*.aab
+
+# Gradle
+.gradle/
+gradle-wrapper.jar
+gradlew
+gradlew.bat
+
+# Flutter build outputs
+build/
+flutter_export_environment.sh
+Generated.xcconfig
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# OS generated files
+Thumbs.db
+Desktop.ini
+
+# Logs
+logs/
+*.log
+
+# Package files
+*.tar.gz
+*.zip
