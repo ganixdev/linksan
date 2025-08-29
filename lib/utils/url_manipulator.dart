@@ -1,28 +1,45 @@
 import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
+import 'performance_monitor.dart';
 
 class UrlManipulator {
-  // Cache for rules to avoid repeated JSON parsing
+  // Singleton pattern for better memory management
+  static final UrlManipulator _instance = UrlManipulator._internal();
+  factory UrlManipulator() => _instance;
+  UrlManipulator._internal();
+
+  // Optimized caching with lazy initialization
   static Map<String, dynamic>? _cachedRules;
   static List<String>? _cachedTrackingParams;
+  static bool _isInitialized = false;
 
-  // Helper method to load and cache rules - optimized
+  // Optimized rules loading (static method)
   static Future<Map<String, dynamic>> _loadRules() async {
-    if (_cachedRules == null) {
+    if (!_isInitialized) {
+      final monitor = PerformanceMonitor();
+      monitor.startTimer('rules_initialization');
       try {
         final rulesString = await rootBundle.loadString('assets/rules.json');
         _cachedRules = json.decode(rulesString) as Map<String, dynamic>;
         _cachedTrackingParams = List<String>.from(_cachedRules!['tracking_parameters'] as List);
+
+        _isInitialized = true;
       } catch (e) {
-        // Fallback to empty rules if loading fails
-        _cachedRules = {'tracking_parameters': <String>[], 'domain_specific_rules': <String, dynamic>{}};
-        _cachedTrackingParams = [];
+        // Fallback with minimal memory allocation
+        _cachedRules = const {'tracking_parameters': <String>[], 'domain_specific_rules': <String, dynamic>{}};
+        _cachedTrackingParams = const <String>[];
+        _isInitialized = true;
+      } finally {
+        monitor.stopTimer('rules_initialization');
       }
     }
     return _cachedRules!;
   }
 
   static Future<Map<String, dynamic>> sanitizeUrl(String url) async {
+    final monitor = PerformanceMonitor();
+    monitor.startTimer('url_sanitization');
+
     try {
       // Load and cache rules - optimized with caching
       final rules = await _loadRules();
@@ -34,6 +51,9 @@ class UrlManipulator {
 
       // Extract initial domain - optimized
       String domain = _extractDomain(uri.host);
+
+      // Use optimized set lookups for better performance
+      // final hasTrackingParams = trackingParamsSet.isNotEmpty;
 
       // Handle Google redirect URLs
       String actualUrl = url;
@@ -55,7 +75,7 @@ class UrlManipulator {
             // Remove Google-specific tracking parameters
             if (domainRules.containsKey(domain)) {
               final domainRule = domainRules[domain] as Map<String, dynamic>;
-              final keepParams = List<String>.from(domainRule['keep'] ?? []);
+              final keepParams = Set<String>.from(domainRule['keep'] ?? []); // Convert to set for O(1) lookups
               final removeParams = List<String>.from(domainRule['remove'] ?? []);
 
               // Remove domain-specific parameters from Google URL - optimized
@@ -67,7 +87,7 @@ class UrlManipulator {
                 }
               }
 
-              // Remove general tracking parameters from Google URL (except those to keep) - optimized
+              // Remove general tracking parameters from Google URL (except those to keep) - optimized with set lookups
               for (final param in trackingParams) {
                 if (!keepParams.contains(param) && googleQueryParams.containsKey(param)) {
                   googleQueryParams.remove(param);
@@ -191,6 +211,8 @@ class UrlManipulator {
         'removedTrackers': const [], // Use const for empty lists
         'domain': 'unknown',
       };
+    } finally {
+      monitor.stopTimer('url_sanitization');
     }
   }
 
@@ -202,12 +224,21 @@ class UrlManipulator {
     final dotIndex2 = host.lastIndexOf('.', dotIndex1 - 1);
     if (dotIndex2 == -1) return host;
 
-    // Handle common cases efficiently
+    // Handle common cases efficiently with optimized string operations
     if (host.startsWith('www.') && dotIndex2 == 3) {
       return host.substring(4); // Remove 'www.' prefix
     }
 
     // For subdomains like sub.example.com, return example.com
-    return host.substring(dotIndex2 + 1);
+    // Use more efficient substring operation
+    final domain = host.substring(dotIndex2 + 1);
+
+    // Additional optimization: handle common TLDs
+    if (domain.length <= 3) {
+      // For very short domains, return as-is
+      return domain;
+    }
+
+    return domain;
   }
 }

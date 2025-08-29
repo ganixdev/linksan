@@ -3,8 +3,15 @@ import 'package:share_plus/share_plus.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:clipboard/clipboard.dart';
 import 'utils/url_manipulator.dart';
+import 'utils/performance_monitor.dart';
 
 void main() {
+  // Enable performance monitoring in debug mode
+  assert(() {
+    PerformanceMonitor();
+    return true;
+  }());
+
   runApp(const MyApp());
 }
 
@@ -34,8 +41,9 @@ class _HomePageState extends State<HomePage> {
   final TextEditingController _urlController = TextEditingController();
   String _sanitizedUrl = '';
   Color _trackersColor = Colors.green;
-  List<String> _removedTrackers = [];
+  List<String> _removedTrackers = const []; // Use const for initial empty list
   bool _hasProcessedUrl = false;
+  bool _isProcessing = false; // Add processing state to prevent multiple requests
 
   @override
   void initState() {
@@ -51,29 +59,44 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _sanitizeUrl(String url, {bool fromShare = false}) async {
-    final result = await UrlManipulator.sanitizeUrl(url);
-    final sanitizedUrl = result['sanitizedUrl'] as String;
-    final removedCount = result['removedCount'] as int;
-    final removedTrackers = result['removedTrackers'] as List<String>;
-    final domain = result['domain'] as String;
+    if (_isProcessing) return; // Prevent multiple simultaneous requests
 
-    // Batch state updates for better performance
-    setState(() {
-      _sanitizedUrl = sanitizedUrl;
-      _removedTrackers = removedTrackers;
-      _hasProcessedUrl = true;
-      _trackersColor = removedCount > 0 ? Colors.red : Colors.green;
-    });
+    setState(() => _isProcessing = true);
 
-    // Show toast
-    final toastMessage = removedCount > 0
-        ? '$removedCount tracker${removedCount == 1 ? '' : 's'} removed from $domain'
-        : 'No trackers found';
-    Fluttertoast.showToast(msg: toastMessage);
+    final monitor = PerformanceMonitor();
+    monitor.startTimer('url_sanitization_ui');
 
-    if (fromShare) {
-      // Re-share the sanitized URL
-      // Share.share(sanitizedUrl);
+    try {
+      final result = await UrlManipulator.sanitizeUrl(url);
+      final sanitizedUrl = result['sanitizedUrl'] as String;
+      final removedCount = result['removedCount'] as int;
+      final removedTrackers = result['removedTrackers'] as List<String>;
+      final domain = result['domain'] as String;
+
+      // Batch state updates for better performance
+      setState(() {
+        _sanitizedUrl = sanitizedUrl;
+        _removedTrackers = removedTrackers;
+        _hasProcessedUrl = true;
+        _isProcessing = false;
+        _trackersColor = removedCount > 0 ? Colors.red : Colors.green;
+      });
+
+      // Show toast
+      final toastMessage = removedCount > 0
+          ? '$removedCount tracker${removedCount == 1 ? '' : 's'} removed from $domain'
+          : 'No trackers found';
+      Fluttertoast.showToast(msg: toastMessage);
+
+      if (fromShare) {
+        // Re-share the sanitized URL
+        // Share.share(sanitizedUrl);
+      }
+    } catch (e) {
+      setState(() => _isProcessing = false);
+      Fluttertoast.showToast(msg: 'Error processing URL: ${e.toString()}');
+    } finally {
+      monitor.stopTimer('url_sanitization_ui');
     }
   }
 
