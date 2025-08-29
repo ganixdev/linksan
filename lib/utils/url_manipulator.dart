@@ -6,12 +6,18 @@ class UrlManipulator {
   static Map<String, dynamic>? _cachedRules;
   static List<String>? _cachedTrackingParams;
 
-  // Helper method to load and cache rules
+  // Helper method to load and cache rules - optimized
   static Future<Map<String, dynamic>> _loadRules() async {
     if (_cachedRules == null) {
-      final rulesString = await rootBundle.loadString('assets/rules.json');
-      _cachedRules = json.decode(rulesString) as Map<String, dynamic>;
-      _cachedTrackingParams = List<String>.from(_cachedRules!['tracking_parameters'] as List);
+      try {
+        final rulesString = await rootBundle.loadString('assets/rules.json');
+        _cachedRules = json.decode(rulesString) as Map<String, dynamic>;
+        _cachedTrackingParams = List<String>.from(_cachedRules!['tracking_parameters'] as List);
+      } catch (e) {
+        // Fallback to empty rules if loading fails
+        _cachedRules = {'tracking_parameters': <String>[], 'domain_specific_rules': <String, dynamic>{}};
+        _cachedTrackingParams = [];
+      }
     }
     return _cachedRules!;
   }
@@ -189,22 +195,19 @@ class UrlManipulator {
   }
 
   static String _extractDomain(String host) {
-    // Handle subdomains by taking the main domain - optimized
-    final parts = host.split('.');
-    final length = parts.length;
+    // Handle subdomains by taking the main domain - highly optimized
+    final dotIndex1 = host.lastIndexOf('.');
+    if (dotIndex1 == -1) return host;
 
-    if (length >= 2) {
-      // For domains like www.example.com, return example.com
-      if (length == 3 && parts[0] == 'www') {
-        return '${parts[1]}.${parts[2]}';
-      }
-      // For domains like sub.example.com, return example.com
-      if (length > 2) {
-        return '${parts[length - 2]}.${parts[length - 1]}';
-      }
-      // For simple domains like example.com
-      return host;
+    final dotIndex2 = host.lastIndexOf('.', dotIndex1 - 1);
+    if (dotIndex2 == -1) return host;
+
+    // Handle common cases efficiently
+    if (host.startsWith('www.') && dotIndex2 == 3) {
+      return host.substring(4); // Remove 'www.' prefix
     }
-    return host;
+
+    // For subdomains like sub.example.com, return example.com
+    return host.substring(dotIndex2 + 1);
   }
 }
