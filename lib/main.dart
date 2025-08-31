@@ -2,19 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:clipboard/clipboard.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
 import 'utils/url_manipulator.dart';
-import 'utils/performance_monitor.dart';
 
 void main() {
-  // Enable performance monitoring in debug mode
-  assert(() {
-    PerformanceMonitor();
-    return true;
-  }());
-
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
+
+const platform = MethodChannel('com.ganixdev.linksan/url');
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -23,10 +19,17 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'LinkSan',
-      theme: ThemeData.light(),
-      darkTheme: ThemeData.dark(),
+      theme: ThemeData.light(useMaterial3: true),
+      darkTheme: ThemeData.dark(useMaterial3: true),
       themeMode: ThemeMode.system,
-      debugShowCheckedModeBanner: false, // Hide debug banner
+      debugShowCheckedModeBanner: false,
+      // Performance optimizations
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.0)),
+          child: child!,
+        );
+      },
       home: const HomePage(),
     );
   }
@@ -39,36 +42,74 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
-  // Ko-fi support link
-  final String _coffeeUrl = 'https://ko-fi.com/ganixdev';
+class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin {
   final TextEditingController _urlController = TextEditingController();
   String _sanitizedUrl = '';
   Color _trackersColor = Colors.green;
-  List<String> _removedTrackers = const []; // Use const for initial empty list
+  List<String> _removedTrackers = [];
   bool _hasProcessedUrl = false;
-  bool _isProcessing = false; // Add processing state to prevent multiple requests
+  bool _isProcessing = false;
+  bool _rulesPreloaded = false;
+
+  // Performance: Keep state alive to avoid rebuilds
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
-    // Seamless sharing is handled by ShareHandlerActivity
-    // No need for Flutter-side intent handling
+    
+    // Performance: Add listener efficiently
+    _urlController.addListener(_onTextChanged);
+    
+    // Preload rules in background for faster first sanitization
+    _preloadRulesAsync();
+    
+    // Handle shared URLs from iOS share extension
+    platform.setMethodCallHandler(_handleMethodCall);
+  }
+
+  void _onTextChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _preloadRulesAsync() async {
+    try {
+      await UrlManipulator.preloadRules();
+      if (mounted) {
+        setState(() => _rulesPreloaded = true);
+      }
+    } catch (e) {
+      // Silently handle preload errors
+    }
+  }
+
+  Future<dynamic> _handleMethodCall(MethodCall call) async {
+    try {
+      if (call.method == 'handleSharedUrl') {
+        final String url = call.arguments as String;
+        if (url.isNotEmpty && mounted) {
+          await _sanitizeUrl(url, fromShare: true);
+        }
+      }
+    } catch (e) {
+      // Error handling for shared URL
+    }
   }
 
   @override
   void dispose() {
+    _urlController.removeListener(_onTextChanged);
     _urlController.dispose();
     super.dispose();
   }
 
   Future<void> _sanitizeUrl(String url, {bool fromShare = false}) async {
-    if (_isProcessing) return; // Prevent multiple simultaneous requests
+    if (_isProcessing) return;
 
     setState(() => _isProcessing = true);
-
-    final monitor = PerformanceMonitor();
-    monitor.startTimer('url_sanitization_ui');
 
     try {
       final result = await UrlManipulator.sanitizeUrl(url);
@@ -77,37 +118,38 @@ class _HomePageState extends State<HomePage> {
       final removedTrackers = result['removedTrackers'] as List<String>;
       final domain = result['domain'] as String;
 
-      // Batch state updates for better performance
-      setState(() {
-        _sanitizedUrl = sanitizedUrl;
-        _removedTrackers = removedTrackers;
-        _hasProcessedUrl = true;
-        _isProcessing = false;
-        _trackersColor = removedCount > 0 ? Colors.red : Colors.green;
-      });
+      if (mounted) {
+        setState(() {
+          _sanitizedUrl = sanitizedUrl;
+          _removedTrackers = removedTrackers;
+          _hasProcessedUrl = true;
+          _isProcessing = false;
+          _trackersColor = removedCount > 0 ? Colors.red : Colors.green;
+        });
 
-      // Show toast
-      final toastMessage = removedCount > 0
-          ? '$removedCount tracker${removedCount == 1 ? '' : 's'} removed from $domain'
-          : 'No trackers found';
-      Fluttertoast.showToast(msg: toastMessage);
+        final toastMessage = removedCount > 0
+            ? '$removedCount tracker${removedCount == 1 ? '' : 's'} removed from $domain'
+            : 'No trackers found';
+        Fluttertoast.showToast(msg: toastMessage);
 
-      if (fromShare) {
-        // Re-share the sanitized URL
-        // Share.share(sanitizedUrl);
+        if (fromShare) {
+          final shareMessage = removedCount > 0
+              ? '$removedCount tracker${removedCount == 1 ? '' : 's'} removed from shared URL'
+              : 'Shared URL is clean - no trackers found';
+          Fluttertoast.showToast(msg: shareMessage, toastLength: Toast.LENGTH_LONG);
+        }
       }
     } catch (e) {
-      setState(() => _isProcessing = false);
-      Fluttertoast.showToast(msg: 'Error processing URL: ${e.toString()}');
-    } finally {
-      monitor.stopTimer('url_sanitization_ui');
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        Fluttertoast.showToast(msg: 'Error processing URL: ${e.toString()}');
+      }
     }
   }
 
   Future<void> _onSanitizePressed() async {
     String url = _urlController.text.trim();
     if (url.isEmpty) {
-      // Auto-paste from clipboard
       url = await FlutterClipboard.paste();
       _urlController.text = url;
     }
@@ -119,7 +161,6 @@ class _HomePageState extends State<HomePage> {
           msg: 'Invalid URL format. Please provide a valid web URL.',
           toastLength: Toast.LENGTH_LONG,
         );
-        // Clear any previous results
         setState(() {
           _sanitizedUrl = '';
           _removedTrackers = [];
@@ -130,82 +171,24 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  // Optimized URL validation - early returns for performance
   bool _isValidUrl(String text) {
     final trimmedText = text.trim();
+    if (trimmedText.isEmpty || trimmedText.length < 10) return false;
+    if (!trimmedText.startsWith('http://') && !trimmedText.startsWith('https://')) return false;
 
-    // Basic checks - optimized
-    if (trimmedText.isEmpty || trimmedText.length < 10) {
-      return false;
-    }
-
-    // Must start with http:// or https:// - optimized check
-    if (!trimmedText.startsWith('http://') && !trimmedText.startsWith('https://')) {
-      return false;
-    }
-
-    // Reject file paths - optimized pattern matching
-    if (trimmedText.startsWith('file://') ||
-        trimmedText.startsWith('/') ||
-        trimmedText.contains(':\\') ||  // Windows paths
-        trimmedText.contains('\\\\')) {  // Network paths
-      return false;
-    }
-
-    // Reject data URLs
-    if (trimmedText.startsWith('data:')) {
-      return false;
-    }
-
-    // Reject URLs that are too short or malformed
     try {
       final uri = Uri.parse(trimmedText);
-
-      // Must have a valid host - optimized
       final host = uri.host;
-      if (host.isEmpty || host.length < 4) {
+      if (host.isEmpty || host.length < 4) return false;
+      if (host == 'localhost' || host == '127.0.0.1' || host.startsWith('192.168.') || 
+          host.startsWith('10.') || host.startsWith('172.')) {
         return false;
       }
-
-      // Reject localhost and private IPs for security - optimized
-      if (host == 'localhost' ||
-          host == '127.0.0.1' ||
-          host.startsWith('192.168.') ||
-          host.startsWith('10.') ||
-          host.startsWith('172.')) {
-        return false;
-      }
-
-      // Must have a valid path or be a proper domain - optimized
-      final path = uri.path;
-      if (path.isNotEmpty && path.length > 1) {
-        // Check if path looks like a file extension we don't want - optimized
-        final lastSegment = path.split('/').last;
-        if (lastSegment.contains('.') &&
-            (lastSegment.endsWith('.jpg') ||
-             lastSegment.endsWith('.jpeg') ||
-             lastSegment.endsWith('.png') ||
-             lastSegment.endsWith('.gif') ||
-             lastSegment.endsWith('.bmp') ||
-             lastSegment.endsWith('.webp') ||
-             lastSegment.endsWith('.svg') ||
-             lastSegment.endsWith('.ico'))) {
-          return false;
-        }
-      }
-
-      // Check for suspicious patterns - optimized
-      if (trimmedText.contains('javascript:') ||
-          trimmedText.contains('<script') ||
-          trimmedText.contains('eval(') ||
-          trimmedText.contains('alert(')) {
-        return false;
-      }
-
+      return true;
     } catch (e) {
       return false;
     }
-
-    return true;
   }
 
   void _copyUrl() {
@@ -213,16 +196,6 @@ class _HomePageState extends State<HomePage> {
       FlutterClipboard.copy(_sanitizedUrl);
       Fluttertoast.showToast(msg: 'URL copied to clipboard');
     }
-  }
-
-  void _clearResults() {
-    setState(() {
-      _sanitizedUrl = '';
-      _removedTrackers = const []; // Use const for empty lists
-      _hasProcessedUrl = false;
-      _trackersColor = Colors.green;
-    });
-    _urlController.clear();
   }
 
   void _shareUrl() {
@@ -233,225 +206,266 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('LinkSan'),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Semantics(
-              label: 'URL input field',
-              hint: 'Enter or paste a URL to sanitize',
-              child: TextField(
-                controller: _urlController,
-                decoration: const InputDecoration(
-                  hintText: 'Press sanitize to auto grab from clipboard',
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-                maxLines: 1,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: Semantics(
-                    label: 'Sanitize URL button',
-                    hint: 'Process and clean the URL from tracking parameters',
-                    child: ElevatedButton(
-                      onPressed: _onSanitizePressed,
-                      child: const Text('Sanitize'),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Semantics(
-                    label: 'Clear results button',
-                    hint: 'Clear all processed results',
-                    child: OutlinedButton(
-                      onPressed: _hasProcessedUrl ? _clearResults : null,
-                      child: const Text('Clear'),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // Redesigned Trackers Section - Only show when URL has been processed
-            if (_hasProcessedUrl) ...[
-              Semantics(
-                label: 'Tracker detection results',
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: _trackersColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _trackersColor.withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          physics: const BouncingScrollPhysics(), // iOS-style scrolling
+          child: Column(
+            children: [
+              // Header Card - Simplified for performance
+              Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Icon(
-                            _removedTrackers.isEmpty ? Icons.shield : Icons.warning,
-                            color: _trackersColor,
-                            size: 24,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _removedTrackers.isEmpty ? 'No Trackers Found' : 'Trackers Detected',
-                            style: TextStyle(
-                              color: _trackersColor,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
+                      Icon(
+                        Icons.link_off,
+                        size: 48,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'URL Sanitizer',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _removedTrackers.isEmpty
-                          ? 'Your URL is clean and safe to use!'
-                          : '${_removedTrackers.length} tracker${_removedTrackers.length == 1 ? '' : 's'} were removed for your privacy',
-                        style: TextStyle(
-                          color: _trackersColor.withOpacity(0.8),
-                          fontSize: 14,
+                        'Remove tracking parameters from URLs',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                      // Show preload status
+                      if (!_rulesPreloaded) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Theme.of(context).primaryColor,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Loading rules...',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Input Section - Optimized
+              Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Enter URL:',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _urlController,
+                        decoration: InputDecoration(
+                          hintText: 'https://example.com/...',
+                          border: const OutlineInputBorder(),
+                          suffixIcon: _urlController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () => _urlController.clear(),
+                                )
+                              : null,
+                        ),
+                        keyboardType: TextInputType.url,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => _onSanitizePressed(),
+                        // Performance: Limit rebuilds
+                        enableSuggestions: false,
+                        autocorrect: false,
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: FilledButton.icon(
+                          onPressed: (_isProcessing || !_rulesPreloaded) ? null : _onSanitizePressed,
+                          icon: _isProcessing
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.cleaning_services),
+                          label: Text(_isProcessing 
+                              ? 'Processing...' 
+                              : !_rulesPreloaded 
+                                  ? 'Loading...' 
+                                  : 'Sanitize URL'),
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-              if (_removedTrackers.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Semantics(
-                  label: 'List of removed trackers',
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _removedTrackers.map((tracker) {
-                      return Semantics(
-                        label: 'Removed tracker: $tracker',
-                        child: Container(
+
+              const SizedBox(height: 24),
+
+              // Results Section - Conditionally rendered for performance
+              if (_hasProcessedUrl) ...[
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Status Badge
+                        Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: Colors.red.shade50,
+                            color: _trackersColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: Colors.red.shade200,
-                              width: 1,
-                            ),
+                            border: Border.all(color: _trackersColor.withValues(alpha: 0.3)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                Icons.block,
+                                _removedTrackers.isEmpty ? Icons.shield : Icons.warning,
                                 size: 16,
-                                color: Colors.red.shade600,
+                                color: _trackersColor,
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                tracker,
+                                _removedTrackers.isEmpty 
+                                    ? 'Clean URL' 
+                                    : '${_removedTrackers.length} tracker${_removedTrackers.length == 1 ? '' : 's'} removed',
                                 style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.red.shade800,
+                                  color: _trackersColor,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-            ],
-            const SizedBox(height: 16),
-            if (_sanitizedUrl.isNotEmpty) ...[
-              const Text(
-                'Sanitized URL:',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Semantics(
-                label: 'Sanitized URL result',
-                child: Text(
-                  _sanitizedUrl,
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: Semantics(
-                      label: 'Copy URL button',
-                      hint: 'Copy the sanitized URL to clipboard',
-                      child: ElevatedButton(
-                        onPressed: _copyUrl,
-                        child: const Text('Copy'),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Semantics(
-                      label: 'Share URL button',
-                      hint: 'Share the sanitized URL',
-                      child: ElevatedButton(
-                        onPressed: _shareUrl,
-                        child: const Text('Share'),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            if (_hasProcessedUrl)
-              Padding(
-                padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
-                child: Center(
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange.shade100,
-                      foregroundColor: Colors.brown.shade800,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                      elevation: 2,
-                    ),
-                    onPressed: () async {
-                      final uri = Uri.parse(_coffeeUrl);
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
-                      } else {
-                        Fluttertoast.showToast(msg: 'Could not open Ko-fi link');
-                      }
-                    },
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Text('🐾', style: TextStyle(fontSize: 20)),
-                        SizedBox(width: 10),
-                        Text('Like my work? ', style: TextStyle(fontWeight: FontWeight.w600)),
-                        Text('Buy me a coffee', style: TextStyle(fontWeight: FontWeight.bold)),
+
+                        const SizedBox(height: 16),
+
+                        // Sanitized URL
+                        Text(
+                          'Sanitized URL:',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: SelectableText(
+                            _sanitizedUrl,
+                            style: const TextStyle(fontFamily: 'monospace'),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Action Buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _copyUrl,
+                                icon: const Icon(Icons.copy),
+                                label: const Text('Copy'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: _shareUrl,
+                                icon: const Icon(Icons.share),
+                                label: const Text('Share'),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        // Removed Trackers - Only if any exist
+                        if (_removedTrackers.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          Text(
+                            'Removed trackers:',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: _removedTrackers.map((tracker) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade50,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: Colors.red.shade200),
+                                ),
+                                child: Text(
+                                  tracker,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.red.shade800,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
                       ],
                     ),
                   ),
                 ),
+              ],
+
+              const SizedBox(height: 32),
+
+              // Footer
+              Text(
+                'Made with ❤️ by ganixdev',
+                style: Theme.of(context).textTheme.bodySmall,
+                textAlign: TextAlign.center,
               ),
-            const Spacer(),
-          ],
+            ],
+          ),
         ),
       ),
     );

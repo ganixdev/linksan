@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
-import 'performance_monitor.dart';
 
 class UrlManipulator {
   // Singleton pattern for better memory management
@@ -16,8 +15,6 @@ class UrlManipulator {
   // Optimized rules loading (static method)
   static Future<Map<String, dynamic>> _loadRules() async {
     if (!_isInitialized) {
-      final monitor = PerformanceMonitor();
-      monitor.startTimer('rules_initialization');
       try {
         final rulesString = await rootBundle.loadString('assets/rules.json');
         _cachedRules = json.decode(rulesString) as Map<String, dynamic>;
@@ -29,17 +26,17 @@ class UrlManipulator {
         _cachedRules = const {'tracking_parameters': <String>[], 'domain_specific_rules': <String, dynamic>{}};
         _cachedTrackingParams = const <String>[];
         _isInitialized = true;
-      } finally {
-        monitor.stopTimer('rules_initialization');
       }
     }
     return _cachedRules!;
   }
 
-  static Future<Map<String, dynamic>> sanitizeUrl(String url) async {
-    final monitor = PerformanceMonitor();
-    monitor.startTimer('url_sanitization');
+  // Preload rules for faster startup
+  static Future<void> preloadRules() async {
+    await _loadRules();
+  }
 
+  static Future<Map<String, dynamic>> sanitizeUrl(String url) async {
     try {
       // Load and cache rules - optimized with caching
       final rules = await _loadRules();
@@ -211,8 +208,6 @@ class UrlManipulator {
         'removedTrackers': const [], // Use const for empty lists
         'domain': 'unknown',
       };
-    } finally {
-      monitor.stopTimer('url_sanitization');
     }
   }
 
