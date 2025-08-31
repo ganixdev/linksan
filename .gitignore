@@ -99,3 +99,43 @@ logs/
 # Package files
 *.tar.gz
 *.zip
+
+# Development and debugging files
+*_backup/
+*.backup
+*.bak
+*_old
+setup_*.sh
+debug_*
+test_*
+*.debug
+
+# iOS specific debugging
+ios/Podfile.lock
+ios/Pods/
+ios/build/
+ios/DerivedData/
+ios/.symlinks/
+*.xcarchive
+*.ipa
+
+# macOS (not needed for mobile-only app)
+macos/
+
+# Flutter debugging
+*.dill
+*.dill.track.dill
+.dart_tool/build/
+.dart_tool/flutter_build/
+*.lock
+
+# VS Code debugging
+.vscode/launch.json
+.vscode/settings.json
+
+# Temporary development files
+temp/
+tmp/
+scratch/
+notes.txt
+TODO.md

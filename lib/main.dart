@@ -204,6 +204,180 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
     }
   }
 
+  // Build the preview content when no URL has been processed
+  Widget _buildPreviewContent() {
+    return Column(
+      children: [
+        Icon(
+          Icons.preview,
+          size: 48,
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.6),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Preview Area',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Enter a URL above and press "Sanitize" to see the cleaned result here',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(
+                Icons.link_off,
+                size: 32,
+                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Sanitized URL will appear here',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Build the results content when a URL has been processed
+  Widget _buildResultsContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Status Badge
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: _trackersColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _trackersColor.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                _removedTrackers.isEmpty ? Icons.shield : Icons.warning,
+                size: 16,
+                color: _trackersColor,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                _removedTrackers.isEmpty 
+                    ? 'Clean URL' 
+                    : '${_removedTrackers.length} tracker${_removedTrackers.length == 1 ? '' : 's'} removed',
+                style: TextStyle(
+                  color: _trackersColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Sanitized URL
+        Text(
+          'Sanitized URL:',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+            ),
+          ),
+          child: SelectableText(
+            _sanitizedUrl,
+            style: const TextStyle(fontFamily: 'monospace'),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Action Buttons
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _copyUrl,
+                icon: const Icon(Icons.copy),
+                label: const Text('Copy'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: _shareUrl,
+                icon: const Icon(Icons.share),
+                label: const Text('Share'),
+              ),
+            ),
+          ],
+        ),
+
+        // Removed Trackers - Only if any exist
+        if (_removedTrackers.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text(
+            'Removed trackers:',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _removedTrackers.map((tracker) {
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Text(
+                  tracker,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.red.shade800,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
@@ -221,60 +395,6 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
           physics: const BouncingScrollPhysics(), // iOS-style scrolling
           child: Column(
             children: [
-              // Header Card - Simplified for performance
-              Card(
-                elevation: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.link_off,
-                        size: 48,
-                        color: Theme.of(context).primaryColor,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'URL Sanitizer',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Remove tracking parameters from URLs',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                        textAlign: TextAlign.center,
-                      ),
-                      // Show preload status
-                      if (!_rulesPreloaded) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              width: 12,
-                              height: 12,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Theme.of(context).primaryColor,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Loading rules...',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
               // Input Section - Optimized
               Card(
                 elevation: 2,
@@ -291,15 +411,25 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
                       TextField(
                         controller: _urlController,
                         decoration: InputDecoration(
-                          hintText: 'https://example.com/...',
+                          hintText: 'Paste URL here or press Sanitize to auto-paste from clipboard',
+                          hintMaxLines: 2,
                           border: const OutlineInputBorder(),
                           suffixIcon: _urlController.text.isNotEmpty
                               ? IconButton(
                                   icon: const Icon(Icons.clear),
-                                  onPressed: () => _urlController.clear(),
+                                  onPressed: () {
+                                    setState(() {
+                                      _urlController.clear();
+                                      _hasProcessedUrl = false;
+                                      _sanitizedUrl = '';
+                                      _removedTrackers.clear();
+                                    });
+                                  },
                                 )
                               : null,
                         ),
+                        maxLines: null,
+                        minLines: 2,
                         keyboardType: TextInputType.url,
                         textInputAction: TextInputAction.done,
                         onSubmitted: (_) => _onSanitizePressed(),
@@ -324,7 +454,7 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
                               ? 'Processing...' 
                               : !_rulesPreloaded 
                                   ? 'Loading...' 
-                                  : 'Sanitize URL'),
+                                  : 'Sanitize'),
                         ),
                       ),
                     ],
@@ -334,127 +464,16 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
 
               const SizedBox(height: 24),
 
-              // Results Section - Conditionally rendered for performance
-              if (_hasProcessedUrl) ...[
-                Card(
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Status Badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: _trackersColor.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: _trackersColor.withValues(alpha: 0.3)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                _removedTrackers.isEmpty ? Icons.shield : Icons.warning,
-                                size: 16,
-                                color: _trackersColor,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                _removedTrackers.isEmpty 
-                                    ? 'Clean URL' 
-                                    : '${_removedTrackers.length} tracker${_removedTrackers.length == 1 ? '' : 's'} removed',
-                                style: TextStyle(
-                                  color: _trackersColor,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Sanitized URL
-                        Text(
-                          'Sanitized URL:',
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          child: SelectableText(
-                            _sanitizedUrl,
-                            style: const TextStyle(fontFamily: 'monospace'),
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Action Buttons
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: _copyUrl,
-                                icon: const Icon(Icons.copy),
-                                label: const Text('Copy'),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: FilledButton.icon(
-                                onPressed: _shareUrl,
-                                icon: const Icon(Icons.share),
-                                label: const Text('Share'),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        // Removed Trackers - Only if any exist
-                        if (_removedTrackers.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          Text(
-                            'Removed trackers:',
-                            style: Theme.of(context).textTheme.titleSmall,
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: _removedTrackers.map((tracker) {
-                              return Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.shade50,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: Colors.red.shade200),
-                                ),
-                                child: Text(
-                                  tracker,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.red.shade800,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+              // Preview/Results Section - Always present for better UX
+              Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: _hasProcessedUrl 
+                    ? _buildResultsContent()
+                    : _buildPreviewContent(),
                 ),
-              ],
+              ),
 
               const SizedBox(height: 32),
 
